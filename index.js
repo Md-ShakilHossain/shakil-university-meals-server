@@ -31,27 +31,74 @@ async function run() {
 
         const mealCollection = client.db("SUMealDB").collection('meal');
         const userCollection = client.db("SUMealDB").collection('users');
+        const upcomingMealCollection = client.db("SUMealDB").collection('upcomingMeal');
 
         // JWT related API
         app.post('/jwt', async (req, res) => {
             const user = req.body;
             const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
             res.send({ token });
-        })
+        });
+
+        // MiddleWares
+        const verifyToken = (req, res, next) => {
+            console.log('Inside verify Token', req.headers.authorization);
+            if (!req.headers.authorization) {
+                return res.status(401).send({ message: 'Unauthorized access' });
+            }
+            const token = req.headers.authorization.split(' ')[1];
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+                if (err) {
+                    return res.status(401).send({ message: 'Unauthorized access' });
+                }
+                req.decoded = decoded;
+                next();
+            })
+        }
+
+        // use verifyAdmin after verifyToken
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            const isAdmin = user?.role === 'admin';
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden Access' });
+            }
+
+            next();
+        }
 
 
         // User related API
         app.get('/users', async (req, res) => {
-            console.log(req.query.email);
-            const email = req.query.email;
-            if(email){
-                const query = {email: email};
-                const result = await userCollection.findOne(query);
-                res.send(result);
-                return;
+            console.log(req.query);
+
+            let query = {};
+            if (req.query?.email) {
+                query = { email: req.query.email };
             }
-            const result = await userCollection.find().toArray();
+            if (req.query?.name) {
+                query = { name: new RegExp(req.query.name, 'i') };
+            }
+
+            const result = await userCollection.find(query).toArray();
             res.send(result);
+        });
+
+        app.get('/users/admin/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            if (!email === req.decoded.email) {
+                return res.status(403).send({ message: 'Forbidden Access' });
+            }
+
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            let admin = false;
+            if (user) {
+                admin = user?.role === 'admin';
+            }
+            res.send({ admin });
         });
 
 
@@ -68,7 +115,19 @@ async function run() {
             res.send(result);
         });
 
-        // menu related apis
+        app.patch('/users/admin/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    role: 'admin'
+                }
+            }
+            const result = await userCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        });
+
+        // meal related apis
         app.get('/meal', async (req, res) => {
             const result = await mealCollection.find().toArray();
             res.send(result);
@@ -79,8 +138,20 @@ async function run() {
             const query = { _id: new ObjectId(id) };
             const result = await mealCollection.findOne(query);
             res.send(result);
-        })
+        });
 
+        app.post('/meal', async(req, res) => {
+            const mealInfo = req.body;
+            const result = await mealCollection.insertOne(mealInfo);
+            res.send(result);
+        });
+
+        // Upcoming Meal Related API
+        app.post('/upcomingMeal', async(req, res) => {
+            const mealInfo = req.body;
+            const result = await upcomingMealCollection.insertOne(mealInfo);
+            res.send(result);
+        });
 
 
         // Send a ping to confirm a successful connection
