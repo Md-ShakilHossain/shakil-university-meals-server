@@ -140,14 +140,50 @@ async function run() {
             res.send(result);
         });
 
-        app.post('/meal', async(req, res) => {
+        app.post('/meal', async (req, res) => {
             const mealInfo = req.body;
             const result = await mealCollection.insertOne(mealInfo);
             res.send(result);
         });
 
+        app.patch('/meal/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    title: item.title,
+                    category: item.category,
+                    image: item.image,
+                    ingredients: item.ingredients,
+                    description: item.description,
+                    price: item.price,
+                    rating: item.rating,
+                    likes: item.likes,
+                    reviews: item.reviews,
+                    adminName: item.adminName,
+                    adminEmail: item.adminEmail
+                }
+            }
+            const result = await mealCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        });
+
+        app.delete('/meal/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await mealCollection.deleteOne(query);
+            res.send(result);
+        });
+
         // Upcoming Meal Related API
-        app.post('/upcomingMeal', async(req, res) => {
+
+        app.get('/upcomingMeal', async (req, res) => {
+            const result = await upcomingMealCollection.find().toArray();
+            res.send(result);
+        })
+
+        app.post('/upcomingMeal', async (req, res) => {
             const mealInfo = req.body;
             const result = await upcomingMealCollection.insertOne(mealInfo);
             res.send(result);
