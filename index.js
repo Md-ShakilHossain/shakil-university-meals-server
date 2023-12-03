@@ -32,6 +32,9 @@ async function run() {
         const mealCollection = client.db("SUMealDB").collection('meal');
         const userCollection = client.db("SUMealDB").collection('users');
         const upcomingMealCollection = client.db("SUMealDB").collection('upcomingMeal');
+        const allReviewCollection = client.db("SUMealDB").collection('reviews');
+        const packageCollection = client.db("SUMealDB").collection('package');
+        const requestedMealCollection = client.db("SUMealDB").collection('requestedMeal');
 
         // JWT related API
         app.post('/jwt', async (req, res) => {
@@ -72,7 +75,6 @@ async function run() {
 
         // User related API
         app.get('/users', async (req, res) => {
-            console.log(req.query);
 
             let query = {};
             if (req.query?.email) {
@@ -85,6 +87,13 @@ async function run() {
             const result = await userCollection.find(query).toArray();
             res.send(result);
         });
+
+        app.get('/users/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.findOne(query);
+            res.send(result);
+        })
 
         app.get('/users/admin/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
@@ -115,6 +124,21 @@ async function run() {
             res.send(result);
         });
 
+        app.patch('/users/:id', async (req, res) => {
+            const name = req.body;
+            console.log("inside the patch", name);
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    badge: 'Gold',
+                    package: name.name
+                }
+            }
+            const result = await userCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        });
+
         app.patch('/users/admin/:id', async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
@@ -138,6 +162,14 @@ async function run() {
             const query = { _id: new ObjectId(id) };
             const result = await mealCollection.findOne(query);
             res.send(result);
+        });
+
+        app.get('/adminCount/:email', async(req, res)=>{
+            const email = req.params.email;
+            const filter = {adminEmail: email};
+            const result = await mealCollection.find(filter).toArray();
+            const count = result.length;
+            res.send({count});
         });
 
         app.post('/meal', async (req, res) => {
@@ -186,6 +218,104 @@ async function run() {
         app.post('/upcomingMeal', async (req, res) => {
             const mealInfo = req.body;
             const result = await upcomingMealCollection.insertOne(mealInfo);
+            res.send(result);
+        });
+
+        // Reviews related api
+        app.get('/allReviews', async (req, res) => {
+            let query = {};
+            if (req.query?.email) {
+                query = { userEmail: req.query.email };
+            }
+            const result = await allReviewCollection.find(query).toArray();
+            res.send(result);
+        });
+
+        app.get('/allReviews/:id', async(req, res)=>{
+            const id = req.params.id;
+            const query = {_id: new ObjectId(id)};
+            const result = await allReviewCollection.findOne(query);
+            res.send(result);
+        });
+
+        app.post('/allReviews', async (req, res) => {
+            const reviewInfo = req.body;
+            const result = await allReviewCollection.insertOne(reviewInfo);
+            res.send(result);
+        });
+
+        app.patch('/allReviews/:id', async (req, res) => {
+            const info = req.body;
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    myReview: info.newReview
+                }
+            }
+            const result = await allReviewCollection.updateOne(filter, updatedDoc);
+            res.send(result);
+        });
+
+        app.delete('/allReviews/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await allReviewCollection.deleteOne(query);
+            res.send(result);
+        });
+
+        // package related api
+        app.get('/package', async (req, res) => {
+            const result = await packageCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/package/:name', async (req, res) => {
+            const name = req.params.name;
+            const query = { name: name };
+            const result = await packageCollection.findOne(query);
+            res.send(result);
+        });
+
+        // payment intent
+        app.post('/create-payment-intent', async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            });
+
+            res.send({
+                clientSecret: paymentIntent.client_secret
+            })
+        });
+
+        //   requested meal related api;
+        app.get('/requestedMeal', async (req, res) => {
+            const result = await requestedMealCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/requestedMeal/:email', async(req, res) => {
+            const email = req.params.email;
+            const filter = {requestedEmail: email};
+            const result = await requestedMealCollection.find(filter).toArray();
+            res.send(result);
+        });
+
+        app.post('/requestedMeal', async (req, res) => {
+            const mealInfo = req.body;
+            const result = await requestedMealCollection.insertOne(mealInfo);
+            res.send(result);
+        });
+
+        app.delete('/requestedMeal/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await requestedMealCollection.deleteOne(query);
             res.send(result);
         });
 
